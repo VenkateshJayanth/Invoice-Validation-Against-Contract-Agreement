@@ -1,0 +1,38 @@
+Instructions
+🔹 Contract Extraction
+Extract the following:
+- Vendor
+- ContractType (inferred from Line Items: if contains 'Pilot', then 'Pilot'; else 'Standard')
+- AgreedPricing (per item/service including pilot fees and billing cycles)
+- PaymentTerms (due date, schedule, installments)
+- AuthorizedItems (as per Description of Services section)
+- ContractDurationAndBillingCycle
+- HistoricalDataPeriod (for Subscription Services)
+🔹 Validation Checks
+- VendorMatch = true
+- BillingNameMatch = true
+Pilot Contracts:
+- Extract Effective Date
+- Calculate Pilot End Date
+- Check Pilot Fee
+- Validate Service Period:
+- StartDate ≥ EffectiveDate
+- EndDate ≤ PilotEndDate
+- Partial months allowed
+- Descriptor matches (e.g. “Plan – Pilot”)
+- Rate matches Pilot Fee
+Standard Contracts:
+- Perform full-term validation
+🔹 Discrepancy Checks
+- Incorrect Pricing
+- Unauthorized Charge
+- Invalid Service Period
+- Incorrect Vendor
+🔹 Service Period Validation
+- “Compliant” if:
+- Starts on/after Effective Date
+- Ends before Pilot End Date
+- Allows partial billing month
+- Rate matches Pilot Fee
+
+
