@@ -1,0 +1,552 @@
+{
+  "name": "OCR + AI - Document Understanding",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Upload Your File",
+        "formDescription": "Upload you File to Extract the information using OCR & AI",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "File Upload",
+              "fieldType": "file",
+              "multipleFiles": false,
+              "acceptFileTypes": ".pdf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        20,
+        0
+      ],
+      "id": "c658a418-6435-41b5-ba24-28a64cd70f6e",
+      "name": "On form submission",
+      "webhookId": "20eee471-79c7-4cbe-a4dc-af1d2db350eb"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/files",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "purpose",
+              "value": "ocr"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "File_Upload"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        0
+      ],
+      "id": "b269e270-0ddb-4ed0-ae61-1500832ef7e7",
+      "name": "Upload To Mistral",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2ouvzp22ZMt3JpRk",
+          "name": "Mistral OCR"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mistral.ai/v1/files/{{ $json.id }}/url",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "expiry",
+              "value": "24"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        0
+      ],
+      "id": "f32979c3-75b8-48ae-a2bc-1811ab8560f2",
+      "name": "Get Signed URL",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2ouvzp22ZMt3JpRk",
+          "name": "Mistral OCR"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.mistral.ai/v1/ocr",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"mistral-ocr-latest\",\n  \"document\": {\n    \"type\": \"document_url\",\n    \"document_url\": \"{{ $json.url }}\"\n  },\n  \"include_image_base64\": true\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        0
+      ],
+      "id": "a15126f9-66bb-435e-8c99-afba06066628",
+      "name": "Get OCR Output",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "2ouvzp22ZMt3JpRk",
+          "name": "Mistral OCR"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.pages[0].markdown }}",
+        "attributes": {
+          "attributes": [
+            {
+              "name": "Invoice Number",
+              "description": "The Number of the Invoice"
+            },
+            {
+              "name": "Invoice_Date",
+              "type": "date",
+              "description": "The Date of the invoice"
+            },
+            {
+              "name": "Total",
+              "type": "number",
+              "description": "The total Invoice Amount"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        960,
+        -80
+      ],
+      "id": "561ddea1-fe44-4e2b-bb6f-4760723493fc",
+      "name": "Information Extractor"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1020,
+        200
+      ],
+      "id": "5445ebbd-c3c6-431b-a735-53eb1da36b0e",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "uBuBSCAnIa1Kk7eB",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "20d5a2e4-cbcd-4e13-a578-613acc27d9f6",
+              "leftValue": "={{ $json.output.Total }}",
+              "rightValue": 40000,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1300,
+        -60
+      ],
+      "id": "1db7aeba-7e01-4fe0-b51c-c297df487671",
+      "name": "If",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "venki27.mca86@gmail.com",
+        "subject": "Approval required",
+        "message": "Hi,\nCould you please verify the invoice Amount & Approve?",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1500,
+        160
+      ],
+      "id": "4de0ba05-f121-4adc-8b78-e44efebc8e13",
+      "name": "Send a message",
+      "webhookId": "efe2c671-6236-490c-8364-bf07c4b0bf27",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "x3F9J7FsgLg6LM0h",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=hello, If the Invoice Number{{ $json.output['Invoice Number'] }} falls from INV-0001 to INV-1000 then it is valid Invoice Number else Invalid Invoice Number,And the Invoice Date {{ $json.output.Invoice_Date }} falls from 2024-05-01 to 2025-07-31 then it is valid Invoice date and the Total {{ $json.output.Total }} is under 100000 then it is valid invoice amount, so the output should look like either \"overallComplianceJustification\": \"The invoice is Compliant based on the Contract Agreement & Invoice Number : {{ $json.output['Invoice Number'] }}\",Invoice Date : {{ $json.output.Invoice_Date }}, Invoice Amount : {{ $json.output.Total }} or\noverallComplianceJustification\": \"The invoice is Non-Compliant due to several discrepancies",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -380
+      ],
+      "id": "10c9d45f-44d9-48f0-a23c-7545ccb01dd7",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1620,
+        -160
+      ],
+      "id": "d060a398-8595-4246-87a2-4d7885dd3b13",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "uBuBSCAnIa1Kk7eB",
+          "name": "n8n free OpenAI API credits"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "venki27.mca86@gmail.com",
+        "subject": "=Overall Compliance Justification For The Invoice Number :  {{ $('Information Extractor').item.json.output['Invoice Number'] }}",
+        "emailType": "text",
+        "message": "={{ $json.output[0].overallComplianceJustification }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2240,
+        -380
+      ],
+      "id": "5bb12394-d28d-4d67-b2d8-60863a45a731",
+      "name": "Send a message1",
+      "webhookId": "2559159b-c159-4891-9541-15f566e6918a",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "x3F9J7FsgLg6LM0h",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "[\n  {\n        \"overallComplianceJustification\": \"The invoice is Compliant based on the Contract Agreement & Invoice Number,Invoice Date, Invoice Amount\"\n  },\n  {\n    \"overallComplianceJustification\": \"The invoice is Non-Compliant due to several discrepancies in Invoice Number, Invoice Date, or Invoice Amount\"\n  }\n]"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1840,
+        -160
+      ],
+      "id": "833dfe50-7cba-4c51-83bc-a6e8bb5b43bc",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "content": "## AI AGENT  \n**To Find the Invoice is Complaint or Non-Complaint.",
+        "height": 520,
+        "width": 560,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        -520
+      ],
+      "id": "ac06f92b-8937-49ae-bbeb-7026dfc45f3c",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Mistral OCR \nExtract The invoice Number,Date,Amount",
+        "height": 320,
+        "width": 640,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        220,
+        -100
+      ],
+      "id": "7e19970c-650f-4dc6-9316-7800e5f56680",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {
+    "Upload To Mistral": [
+      {
+        "json": {
+          "id": "616ecee2-bb94-4ee6-b541-fad60948ef1c",
+          "object": "file",
+          "bytes": 74946,
+          "created_at": 1751803194,
+          "filename": "Invoice 1.pdf",
+          "purpose": "ocr",
+          "sample_type": "ocr_input",
+          "num_lines": 0,
+          "mimetype": "application/pdf",
+          "source": "upload",
+          "signature": "8c222d38f45bd3c0d4dbdb4d015e5f93"
+        }
+      }
+    ],
+    "Get Signed URL": [
+      {
+        "json": {
+          "url": "https://mistralaifilesapiprodswe.blob.core.windows.net/fine-tune/fa75ea80-885a-4aed-bb16-97c66e883789/88dd6449-0e9a-49be-acdb-932ecb510013/616ecee2bb944ee6b541fad60948ef1c.pdf?se=2025-07-07T12%3A00%3A10Z&sp=r&sv=2025-05-05&sr=b&sig=qeQNoa0sT0LbgdbmBPTVJMozBSTd7jC9doShn6b3zEU%3D"
+        }
+      }
+    ],
+    "Get OCR Output": [
+      {
+        "json": {
+          "pages": [
+            {
+              "index": 0,
+              "markdown": "# Invoice \n\n## Vendor Details:\n\n- Vendor Name: QuantumSync Technologies\n- Vendor Address: 789 Innovation Drive, San Francisco, CA 94107, USA\n\nBilling Details:\n\n- Billing Name: Vertex Global Solutions\n- Billing Address: 321 Enterprise Lane, Austin, TX 73301, USA\n\nInvoice Details:\n\n- Invoice Number: INV-0001\n- Invoice Date: Sep 25, 2024\n- Due Date: Oct 25, 2024\n\n\n## Line Items:\n\n| Description | Unit <br> Quantity | Total <br> Price <br> (USD) | Amount (USD) |\n| :--: | :--: | :--: | :--: |\n| AcmeCorp News API V3 Enterprise Plan - Pilot (4 months) - |  |  |  |\n| Unlimited calls per month - 1 call per second - 8 months of historical data - Service Period: 2024-09-15 to 2025-01-15 | 1 | 50,000 | 50,000 |\n\n## Total Amount Summary:\n\n- Subtotal: \\$50,000\n- Tax: $\\$ 0$\n- Net Amount Due: \\$50,000",
+              "images": [],
+              "dimensions": {
+                "dpi": 200,
+                "height": 2339,
+                "width": 1654
+              }
+            }
+          ],
+          "model": "mistral-ocr-2505-completion",
+          "document_annotation": null,
+          "usage_info": {
+            "pages_processed": 1,
+            "doc_size_bytes": 74946
+          }
+        }
+      }
+    ],
+    "Information Extractor": [
+      {
+        "json": {
+          "output": {
+            "Invoice Number": "INV-0001",
+            "Invoice_Date": "2024-09-25",
+            "Total": 50000
+          }
+        }
+      }
+    ],
+    "AI Agent": [
+      {
+        "json": {
+          "output": [
+            {
+              "overallComplianceJustification": "The invoice is Compliant based on the Contract Agreement & Invoice Number : INV-0001, Invoice Date : 2024-09-25, Invoice Amount : 50000"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Upload To Mistral",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload To Mistral": {
+      "main": [
+        [
+          {
+            "node": "Get Signed URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Signed URL": {
+      "main": [
+        [
+          {
+            "node": "Get OCR Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get OCR Output": {
+      "main": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Information Extractor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Information Extractor": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a11791c8-69a3-42f9-82ed-23f4e5519138",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "10abeaa332991251e0a4eba221aba90cbb7b6373002e9d131516e6db6cee3c0f"
+  },
+  "id": "STJzCr1SeVWsWHVU",
+  "tags": []
+}
