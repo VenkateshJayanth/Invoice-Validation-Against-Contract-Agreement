@@ -1,0 +1,104 @@
+{
+  "name": "InvoiceContractValidation",
+  "description": "Context grounding for validating invoice details against contract agreements using the 'Contract_Agreements' index.",
+  "index": "Contract_Agreements",
+  "purpose": "Validate invoice compliance with contract terms including pricing, billing cycle, and service details.",
+  "instructions": {
+    "ContractExtraction": {
+      "extract": [
+        "Vendor",
+        "ContractType (inferred from Line Items: if contains 'Pilot', then 'Pilot'; else 'Standard')",
+        "AgreedPricing (per item/service including pilot fees and billing cycles)",
+        "PaymentTerms (due date, schedule, installments)",
+        "AuthorizedItems (as per Description of Services section)",
+        "ContractDurationAndBillingCycle",
+        "HistoricalDataPeriod (for Subscription Services)"
+      ]
+    },
+    "ValidationChecks": {
+      "VendorMatch": true,
+      "BillingNameMatch": true,
+      "ContractType": {
+        "Pilot": {
+          "ExtractEffectiveDate": true,
+          "CalculatePilotEndDate": true,
+          "CheckPilotFee": true,
+          "ServicePeriod": {
+            "StartDate": ">= Effective Date",
+            "EndDate": "<= Pilot End Date",
+            "AllowPartialMonth": true
+          },
+          "AllowServiceDescriptors": "ServiceName + Pilot",
+          "RateCheck": "Matches Pilot Fee"
+        },
+        "Standard": {
+          "PerformFullValidation": true
+        }
+      },
+      "DiscrepancyChecks": [
+        "Incorrect Pricing",
+        "Unauthorized Charge",
+        "Invalid Service Period",
+        "Incorrect Vendor"
+      ],
+      "ServicePeriodValidation": {
+        "CompliantIf": [
+          "Service starts on/after Effective Date",
+          "Ends before Pilot End Date",
+          "Partial month OK",
+          "Rate matches pilot fee"
+        ]
+      }
+    },
+    "OutputFormat": {
+      "IsPilot": true,
+      "invoiceValidationResult": {
+        "invoiceID": "<InvoiceNumber>",
+        "validationSummary": [
+          {
+            "issue": "<IssueType>",
+            "expected": "<ContractValue>",
+            "found": "<InvoiceValue>"
+          }
+        ],
+        "servicePeriodValidation": "<Compliant/Non-Compliant>",
+        "HistoricalData": "<InvoiceValue>",
+        "HistoricalDataCG": "<ContractValue>"
+      },
+      "isPilotJustification": "Line item contains 'Pilot' in description.",
+      "overallCompliance": "<Compliant/Non-Compliant>",
+      "overallComplianceJustification": "<Summary of reasons>"
+    }
+  },
+  "example": {
+    "input": {
+      "VendorName": "QuantumSync Technologies",
+      "InvoiceNumber": "INV-0001",
+      "LineItems": [
+        {
+          "Description": "AcmeCorp News API V3 Enterprise Plan – Pilot 4 months",
+          "UnitPrice": "50000",
+          "Service Period": "2024-09-15 to 2025-01-15"
+        }
+      ]
+    },
+    "output": {
+      "IsPilot": true,
+      "invoiceValidationResult": {
+        "invoiceID": "INV-0001",
+        "validationSummary": [
+          {
+            "issue": "Incorrect Pricing",
+            "expected": "$20,000 for 4 months",
+            "found": "$50,000"
+          }
+        ],
+        "servicePeriodValidation": "Compliant",
+        "HistoricalData": "8 months",
+        "HistoricalDataCG": "1 year"
+      },
+      "overallCompliance": "Non-Compliant",
+      "overallComplianceJustification": "Invoice exceeds pilot fee and provides less historical data than agreed."
+    }
+  }
+}
